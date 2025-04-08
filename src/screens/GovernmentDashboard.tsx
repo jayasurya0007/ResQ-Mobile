@@ -4,7 +4,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions } from
 const GovernmentDashboard = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const [showGuidelines, setShowGuidelines] = useState(false);
-  const [ws] = useState(() => new WebSocket('wss://resq-zw5x.onrender.com/ws/government'));
+  const [ws] = useState(() => new WebSocket('wss://resq-mobile.onrender.com/ws/government'));
 
   useEffect(() => {
     ws.onmessage = (event) => {
