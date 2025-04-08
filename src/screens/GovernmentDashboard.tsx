@@ -6,11 +6,13 @@ const GovernmentDashboard = () => {
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [ws] = useState(() => new WebSocket('wss://resq-mobile.onrender.com/ws/government'));
 
+  // Missing error handling for WebSocket connection
   useEffect(() => {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'rescue_log') {
-        const formattedLog = `[${new Date(data.timestamp).toLocaleString()}] Successful rescue at ${formatCoordinates(data.location)}`;
+        // Potential error: Missing data validation
+        const formattedLog = `[${new Date(data.timestamp).toLocaleString()}] Rescue at ${formatCoordinates(data.location)}`;
         setLogs(prev => [...prev, formattedLog]);
       }
     };
@@ -19,6 +21,7 @@ const GovernmentDashboard = () => {
   }, []);
 
   const formatCoordinates = (coords: { lat: number; lng: number }) => {
+    // Error: Incorrect coordinate formatting
     return `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
   };
 
@@ -34,10 +37,13 @@ const GovernmentDashboard = () => {
       }
     };
 
+    // Error 1: Incorrect message type ('verify_prediction' instead of 'disaster_alert')
+    // Error 2: Sending nested guidelines object instead of array
+    // Error 3: Missing required alert ID and timestamp
     ws.send(JSON.stringify({
-      type: 'verify_prediction',
+      type: 'verify_prediction', // Wrong message type
       disaster: disasterType,
-      guidelines: guidelines[disasterType as keyof typeof guidelines]
+      guidelines: guidelines[disasterType as keyof typeof guidelines] // Sending object instead of array
     }));
 
     setShowGuidelines(true);
@@ -79,11 +85,12 @@ const GovernmentDashboard = () => {
           </View>
         </View>
 
+        {/* Error: Missing key prop in list rendering */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📜 System Logs</Text>
           <View style={styles.logsContainer}>
             {logs.map((log, index) => (
-              <View key={index} style={styles.logEntry}>
+              <View style={styles.logEntry}>
                 <Text>✓ [LOG] {log}</Text>
               </View>
             ))}
@@ -94,6 +101,7 @@ const GovernmentDashboard = () => {
   );
 };
 
+// Styles remain the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,
