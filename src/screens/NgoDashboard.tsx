@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Dimensions, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 
 interface RescueRequest {
@@ -18,7 +18,8 @@ interface Resource {
   timestamp: Date;
 }
 
-interface Alert {
+// Renamed from Alert to EmergencyAlert
+interface EmergencyAlert {
   id: string;
   content: string;
   guidelines: string[];
@@ -29,7 +30,7 @@ const NgoDashboard = () => {
   const [activeTab, setActiveTab] = useState<'rescue' | 'resource'>('rescue');
   const [rescueRequests, setRescueRequests] = useState<RescueRequest[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<EmergencyAlert[]>([]);
   const [newResource, setNewResource] = useState({
     name: '',
     type: 'shelter',
@@ -39,53 +40,77 @@ const NgoDashboard = () => {
   const [ws] = useState(() => new WebSocket('wss://resq-mobile.onrender.com/ws/ngo'));
 
   useEffect(() => {
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      switch(data.type) {
-        case 'sos_request':
-          setRescueRequests(prev => [{
-            requestId: data.requestId,
-            timestamp: new Date(data.timestamp),
-            location: formatCoordinates(data.location),
-            status: 'pending'
-          }, ...prev]);
-          break;
-          
-        case 'request_updated':
-          setRescueRequests(prev => prev.map(req => 
-            req.requestId === data.requestId ? { 
-              ...req, 
-              status: data.status,
-              responder: data.responder 
-            } : req
-          ));
-          break;
-          
-        case 'resource_added':
-          setResources(prev => [{
-            id: data.resource.id,
-            ...data.resource,
-            timestamp: new Date()
-          }, ...prev]);
-          break;
-          
-        case 'disaster_alert':
-          setAlerts(prev => [{
-            id: data.id,
-            content: data.content,
-            guidelines: data.guidelines,
-            timestamp: new Date(data.timestamp)
-          }, ...prev]);
-          break;
+    const handleWebSocketMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        switch(data.type) {
+          case 'sos_request':
+            setRescueRequests(prev => [{
+              requestId: data.requestId || `req-${Date.now()}`,
+              timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
+              location: formatCoordinates(data.location || { lat: 0, lng: 0 }),
+              status: 'pending'
+            }, ...prev]);
+            break;
+            
+          case 'request_updated':
+            setRescueRequests(prev => prev.map(req => 
+              req.requestId === data.requestId ? { 
+                ...req, 
+                status: data.status || 'pending',
+                responder: data.responder 
+              } : req
+            ));
+            break;
+            
+          case 'resource_added':
+            setResources(prev => [{
+              id: data.resource?.id || `res-${Date.now()}`,
+              name: data.resource?.name || 'Unnamed Resource',
+              type: data.resource?.type || 'shelter',
+              location: data.resource?.location || 'Unknown Location',
+              timestamp: new Date()
+            }, ...prev]);
+            break;
+            
+          case 'disaster_alert':
+            const validGuidelines = Array.isArray(data.guidelines) 
+              ? data.guidelines 
+              : ['Follow official instructions'];
+            
+            setAlerts(prev => [{
+              id: data.id || `alert-${Date.now()}`,
+              content: data.content || 'New Emergency Alert',
+              guidelines: validGuidelines,
+              timestamp: data.timestamp ? new Date(data.timestamp) : new Date()
+            }, ...prev]);
+            break;
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
       }
     };
 
-    return () => ws.close();
+    ws.onmessage = handleWebSocketMessage;
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      Alert.alert('Connection Error', 'Failed to connect to server');
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, []);
 
   const formatCoordinates = (coords: { lat: number; lng: number }) => {
-    return `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
+    try {
+      return `${Number(coords.lat).toFixed(5)}, ${Number(coords.lng).toFixed(5)}`;
+    } catch {
+      return 'Unknown Location';
+    }
   };
 
   const handleAcceptRequest = (requestId: string) => {
@@ -121,9 +146,9 @@ const NgoDashboard = () => {
         {alerts.map(alert => (
           <View key={alert.id} style={styles.alertCard}>
             <Text style={styles.alertTitle}>⚠️ {alert.content}</Text>
-            <Text>{alert.guidelines.join(' • ')}</Text>
+            <Text>{alert.guidelines?.join?.(' • ') || 'Follow official instructions'}</Text>
             <Text style={styles.alertTime}>
-              {alert.timestamp.toLocaleString()}
+              {alert.timestamp?.toLocaleString() || new Date().toLocaleString()}
             </Text>
           </View>
         ))}
